@@ -1,0 +1,93 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Ambientes virtuais ---
+venv/
+env/
+ENV/
+.venv/
+
+# --- Variáveis de ambiente / segredos ---
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# --- Credenciais externas (NUNCA commitar) ---
+credentials.json
+token.json
+google-credentials.json
+service-account*.json
+client_secret*.json
+*.pem
+*.key
+
+# --- IDEs e editores ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Testes e coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# --- Type checkers e linters ---
+.mypy_cache/
+.pyre/
+.pytype/
+.ruff_cache/
+
+# --- Logs e dumps locais ---
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+*.dump
+*.sql.gz
+
+# --- Jupyter (caso usemos para prototipar prompts/RAG) ---
+.ipynb_checkpoints/
+
+# --- Obsidian: ignorar apenas estado pessoal do vault ---
+# (config compartilhada do vault — themes, core_plugins — fica versionada)
+docs/.obsidian/workspace.json
+docs/.obsidian/workspace-mobile.json
+docs/.obsidian/workspace.json.bak
+docs/.obsidian/cache
+docs/.obsidian/graph.json
+docs/.trash/
+
+# --- Build / packaging ---
+*.manifest
+*.spec
