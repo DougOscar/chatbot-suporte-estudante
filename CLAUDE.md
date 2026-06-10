@@ -107,6 +107,12 @@ uv run python -m chatbot.interfaces.telegram_bot
 
 O processo conecta no Telegram em **polling**, registra cada interação na tabela `interacao`, e segue rodando até `Ctrl+C`. Em modo webhook (`TELEGRAM_MODE=webhook`) ainda não há suporte — vai virar `NotImplementedError`.
 
+### Seed de dados de exemplo
+
+```bash
+uv run python scripts/seed_calendario.py     # ~15 eventos no banco (idempotente)
+```
+
 ## A preencher quando o código existir
 
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:
