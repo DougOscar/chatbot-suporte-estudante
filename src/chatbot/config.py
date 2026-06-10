@@ -17,7 +17,7 @@ via ``monkeypatch.setenv(...)`` — ver ``tests/unit/test_config.py``.
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, HttpUrl, SecretStr, model_validator
+from pydantic import Field, HttpUrl, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Configuração compartilhada por todas as sub-settings.
@@ -46,6 +46,13 @@ class TelegramSettings(BaseSettings):
     bot_token: SecretStr = Field(min_length=1)
     mode: TelegramMode = "polling"
     webhook_url: HttpUrl | None = None
+
+    @field_validator("webhook_url", mode="before")
+    @classmethod
+    def _empty_string_to_none(cls, v: object) -> object:
+        if isinstance(v, str) and v.strip() == "":
+            return None
+        return v
 
     @model_validator(mode="after")
     def _webhook_url_required_when_webhook(self) -> "TelegramSettings":
@@ -85,7 +92,7 @@ class EmbeddingSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="EMBEDDING_", **_COMMON)
 
     provider: EmbeddingProvider = "gemini"
-    model: str = "text-embedding-004"
+    model: str = "gemini-embedding-001"
     api_key: SecretStr | None = None
 
 
