@@ -44,12 +44,12 @@ Detalhes de cada feature: [[docs/02-Dominios/]] no vault.
 
 ## Configuração local
 
-> Comandos exatos de instalação/execução serão preenchidos quando o `pyproject.toml` e o entrypoint do bot existirem. Esta seção fixa **o roteiro de configuração** que precisa estar pronto antes de rodar.
+O projeto usa [`uv`](https://docs.astral.sh/uv/) como gerenciador de pacotes e ambiente. Instale com `curl -LsSf https://astral.sh/uv/install.sh | sh` (ou `brew install uv` no macOS).
 
 1. **Clonar o repositório**
    ```bash
-   git clone https://github.com/DougOscar/<nome-do-repo>.git
-   cd <nome-do-repo>
+   git clone https://github.com/DougOscar/chatbot-suporte-estudante.git
+   cd chatbot-suporte-estudante
    ```
 
 2. **Configurar autoria local de git** (apenas neste repositório)
@@ -58,24 +58,47 @@ Detalhes de cada feature: [[docs/02-Dominios/]] no vault.
    git config user.email "DougOscar@users.noreply.github.com"
    ```
 
-3. **Copiar e preencher variáveis de ambiente**
+3. **Instalar dependências**
+   ```bash
+   uv sync
+   ```
+   O `uv` cria automaticamente `.venv/`, baixa o Python 3.12 se necessário, e instala tudo a partir de `uv.lock`. Para incluir um provedor de LLM específico:
+   ```bash
+   uv sync --extra gemini       # ou: anthropic | openai | groq | local-embeddings
+   ```
+
+4. **Copiar e preencher variáveis de ambiente**
    ```bash
    cp .env.example .env
    ```
    Cada variável está documentada em [`docs/04-Operacoes/Variaveis-de-Ambiente.md`](docs/04-Operacoes/Variaveis-de-Ambiente.md).
 
-4. **Criar o bot no Telegram**
-   Siga o passo a passo em [`docs/03-Integracoes/Telegram-BotFather.md`](docs/03-Integracoes/Telegram-BotFather.md).
-   O token gerado vai em `TELEGRAM_BOT_TOKEN` no `.env`.
+5. **Criar o bot no Telegram**
+   Siga o passo a passo em [`docs/03-Integracoes/Telegram-BotFather.md`](docs/03-Integracoes/Telegram-BotFather.md). O token gerado vai em `TELEGRAM_BOT_TOKEN` no `.env`.
 
-5. **Configurar credenciais Google (Calendar + Docs + Drive)**
+6. **Configurar credenciais Google (Calendar + Docs + Drive)**
    Passo a passo em [`docs/03-Integracoes/Google-Calendar.md`](docs/03-Integracoes/Google-Calendar.md) e [`docs/03-Integracoes/Google-Docs-Drive.md`](docs/03-Integracoes/Google-Docs-Drive.md).
 
-6. **Provisionar banco e rodar migrações**
+7. **Provisionar banco e rodar migrações**
    Instruções em [`docs/04-Operacoes/Banco-de-Dados.md`](docs/04-Operacoes/Banco-de-Dados.md) (incluindo como habilitar `pgvector`).
 
-7. **Subir o bot** (modo polling para desenvolvimento)
+8. **Subir o bot** (modo polling para desenvolvimento)
    O comando exato será adicionado aqui após a primeira iteração de código.
+
+### Comandos de desenvolvimento
+
+| Tarefa | Comando |
+|---|---|
+| Instalar/sincronizar deps | `uv sync` |
+| Adicionar dependência runtime | `uv add <pacote>` |
+| Adicionar dependência de dev | `uv add --group dev <pacote>` |
+| Lint | `uv run ruff check .` |
+| Lint com auto-fix | `uv run ruff check --fix .` |
+| Format | `uv run ruff format .` |
+| Type check | `uv run mypy src` |
+| Rodar testes | `uv run pytest` |
+| Rodar um teste específico | `uv run pytest tests/unit/test_x.py::test_y` |
+| Rodar comando arbitrário no venv | `uv run <comando>` |
 
 ---
 

@@ -59,19 +59,36 @@ Termos de domínio (status de matrícula, status de pagamento, intenção, audi�
 - **Google Docs/Drive (KB)**: **service account** com permissão Viewer na pasta da KB.
 - **Logging de interações**: tabela `interacao` no Postgres com tokens in/out, contexto recuperado em JSONB, registro em background (`asyncio.create_task`) para não bloquear resposta. Schema em [`docs/05-Modelagem/Schema-Banco.md`](docs/05-Modelagem/Schema-Banco.md).
 
+## Comandos comuns
+
+Gerenciador de pacotes: **uv**. Python pinado em `.python-version` (3.12). Lockfile `uv.lock` é versionado.
+
+```bash
+uv sync                            # instala/atualiza dependências a partir de uv.lock
+uv sync --extra gemini             # inclui SDK do provedor de LLM (gemini|anthropic|openai|groq|local-embeddings)
+uv add <pacote>                    # adiciona dep runtime
+uv add --group dev <pacote>        # adiciona dep de dev (ruff/mypy/pytest)
+uv run ruff check .                # lint
+uv run ruff check --fix .          # lint + auto-fix
+uv run ruff format .               # format
+uv run mypy src                    # type check (strict)
+uv run pytest                      # roda testes
+uv run pytest tests/unit/test_x.py::test_y   # um teste específico
+uv run pytest -m unit              # apenas testes marcados como `unit`
+```
+
+Markers de pytest disponíveis (definidos em `pyproject.toml`): `unit`, `integration`, `e2e`.
+
 ## A preencher quando o código existir
 
-Estes itens **ainda não têm comandos reais**. Adicionar aqui quando forem criados — **não inventar antes**:
+Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:
 
-- Gerenciador de pacotes (`uv` / `poetry` / `pip-tools`) e comando de install.
-- Comando para rodar o bot localmente (polling).
-- Comando para rodar a suíte de testes / um teste específico.
-- Comando de lint/format (sugestão: `ruff` + `ruff format`).
-- Comando para aplicar migrações (provável `alembic upgrade head`).
-- Comando para rodar o job de sincronização da KB (`python -m scripts.sync_kb`).
+- Comando para rodar o bot localmente em polling (será algo como `uv run python -m chatbot` após criarmos o entry point).
+- Comando para aplicar migrações (provável `uv run alembic upgrade head`).
+- Comando para rodar o job de sincronização da KB (provável `uv run python -m scripts.sync_kb`).
 - Dockerfile / docker-compose para dev.
 
-Estrutura de pastas já existente:
+Estrutura de pastas existente:
 ```
 src/chatbot/{domain,application,infrastructure,interfaces}/
 tests/{unit,integration,e2e}/
