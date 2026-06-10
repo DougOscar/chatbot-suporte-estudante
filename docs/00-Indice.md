@@ -49,3 +49,7 @@ Vault Obsidian com o desenho técnico completo do bot. Abra esta pasta como vaul
 
 - [[05-Modelagem/Schema-Banco]] — tabelas e relacionamentos
 - [[05-Modelagem/Glossario-Ubiquo]] — termos do domínio (linguagem ubíqua)
+
+## 06 — Próximos passos
+
+- [[06-Proximos-Passos]] — pendências do próximo ciclo (onboarding, API real do sistema acadêmico, OAuth callback, RAG real, PII, healthchecks)
