@@ -79,12 +79,27 @@ uv run pytest -m unit              # apenas testes marcados como `unit`
 
 Markers de pytest disponíveis (definidos em `pyproject.toml`): `unit`, `integration`, `e2e`.
 
+### Migrações (Alembic)
+
+```bash
+uv run alembic upgrade head                                  # aplica migrações
+uv run alembic upgrade head --sql                            # gera SQL offline (não conecta)
+uv run alembic downgrade -1                                  # volta uma versão
+uv run alembic revision --autogenerate -m "<descrição>"      # cria nova (precisa de DB)
+uv run alembic history                                       # lista versões
+uv run alembic current                                       # versão atual no DB
+```
+
+Notas importantes:
+- `migrations/env.py` lê **apenas** `DATABASE_URL` (via `DatabaseSettings()` direto, não `get_settings()`) — o Alembic roda sem precisar das demais variáveis de ambiente configuradas.
+- A migração inicial cria a extensão `pgvector` e o índice **HNSW** em `kb_chunk.embedding`. Requer Postgres com extensão `vector` >= 0.5 (a imagem `pgvector/pgvector:pg16` atende).
+- A dimensão do vetor é **768** (Gemini `text-embedding-004`). Mudar exige nova migração — `EMBEDDING_DIM` precisa bater entre `models.py` e a migração.
+
 ## A preencher quando o código existir
 
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:
 
 - Comando para rodar o bot localmente em polling (será algo como `uv run python -m chatbot` após criarmos o entry point).
-- Comando para aplicar migrações (provável `uv run alembic upgrade head`).
 - Comando para rodar o job de sincronização da KB (provável `uv run python -m scripts.sync_kb`).
 - Dockerfile / docker-compose para dev.
 

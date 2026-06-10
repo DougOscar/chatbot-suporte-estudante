@@ -98,6 +98,10 @@ O projeto usa [`uv`](https://docs.astral.sh/uv/) como gerenciador de pacotes e a
 | Type check | `uv run mypy src` |
 | Rodar testes | `uv run pytest` |
 | Rodar um teste específico | `uv run pytest tests/unit/test_x.py::test_y` |
+| Aplicar migrações | `uv run alembic upgrade head` |
+| Gerar SQL das migrações (sem conectar) | `uv run alembic upgrade head --sql` |
+| Voltar uma migração | `uv run alembic downgrade -1` |
+| Criar nova migração (com DB rodando) | `uv run alembic revision --autogenerate -m "..."` |
 | Rodar comando arbitrário no venv | `uv run <comando>` |
 
 ---
