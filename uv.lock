@@ -292,6 +292,7 @@ openai = [
 [package.dev-dependencies]
 dev = [
     { name = "anyio" },
+    { name = "google-genai" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -326,6 +327,7 @@ provides-extras = ["gemini", "anthropic", "openai", "groq", "local-embeddings"]
 [package.metadata.requires-dev]
 dev = [
     { name = "anyio", specifier = ">=4" },
+    { name = "google-genai", specifier = ">=0.3" },
     { name = "mypy", specifier = ">=1.13" },
     { name = "pytest", specifier = ">=8" },
     { name = "pytest-asyncio", specifier = ">=0.24" },

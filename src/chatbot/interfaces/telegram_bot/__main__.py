@@ -1,18 +1,18 @@
 """Entry point do bot do Telegram em modo polling.
 
-Composition root: carrega a configuração, instancia engine/adapters,
-monta os casos de uso e registra os handlers.
+Composition root: carrega config, instancia engine/adapters, monta os
+casos de uso e registra handlers.
 
-Rodar:
-
-    uv run python -m chatbot.interfaces.telegram_bot
-
-ou (entry point CLI):
+Rodar::
 
     uv run chatbot-bot
+    # ou:
+    uv run python -m chatbot.interfaces.telegram_bot
 
-Estado atual (Fase 2): handlers de ``/start``, intent simples para
-calendário (regex), e fallback de eco. Sem LLM real ainda.
+Estado atual (Fase 3): intent routing via ``ClassificarIntencao``,
+contexto coletado por ``ProcessarMensagem``, resposta gerada por
+``LLMGateway`` (Gemini por default, ou ``NullLLMGateway`` se a chave
+estiver vazia).
 """
 
 import time
@@ -31,10 +31,16 @@ from telegram.ext import (
 )
 
 from chatbot.application.calendario import ConsultarCalendario
+from chatbot.application.conversa import (
+    ClassificarIntencao,
+    GerarResposta,
+    ProcessarMensagem,
+)
 from chatbot.application.observabilidade import RegistrarInteracao
-from chatbot.config import get_settings
-from chatbot.domain.calendario import EventoCalendario
+from chatbot.config import Settings, get_settings
+from chatbot.domain.conversa import PERSONA_PADRAO, LLMGateway
 from chatbot.domain.observabilidade import Interacao
+from chatbot.infrastructure.llm.null_gateway import NullLLMGateway
 from chatbot.infrastructure.observabilidade.logging import configurar_logging
 from chatbot.infrastructure.observabilidade.sqlalchemy_log import SqlAlchemyInteracaoLog
 from chatbot.infrastructure.persistence.calendario_repository import (
@@ -44,31 +50,43 @@ from chatbot.infrastructure.persistence.engine import create_engine, create_sess
 
 _log = structlog.get_logger(__name__)
 
-PROMPT_VERSAO = "mvp-echo-0"
-
-# Regex de intenção CALENDARIO. Pega variações comuns em pt-BR.
-_REGEX_CALENDARIO = (
-    r"(?i)calend[áa]rio|"
-    r"pr[óo]xim[oa]s?\s+(eventos?|datas?|provas?|aulas?)|"
-    r"pr[óo]xim[oa]\s+prova|"
-    r"prazo|"
-    r"recesso"
-)
-
 Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Coroutine[Any, Any, None]]
 AnyApplication = Application[Any, Any, Any, Any, Any, Any]
 
 
+def _construir_gateway_llm(settings: Settings) -> LLMGateway:
+    """Escolhe o adapter de LLM conforme a config. Sem chave → fallback null."""
+    if settings.llm.api_key is None or not settings.llm.api_key.get_secret_value():
+        _log.warning("llm_api_key_ausente_usando_null_gateway")
+        return NullLLMGateway()
+
+    provider = settings.llm.provider
+    if provider == "gemini":
+        # Import lazy: extra `gemini` pode não estar instalado.
+        from chatbot.infrastructure.llm.gemini_gateway import GeminiLLMGateway
+
+        return GeminiLLMGateway(
+            api_key=settings.llm.api_key.get_secret_value(),
+            model=settings.llm.model,
+        )
+
+    raise NotImplementedError(
+        f"Provedor de LLM '{provider}' ainda não implementado. Suportados: gemini."
+    )
+
+
 def _construir_handler_start(registrar: RegistrarInteracao) -> Handler:
+    """Welcome determinístico — não passa pelo LLM (UX previsível na primeira interação)."""
+
     async def on_start(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if (msg := update.message) is None or (user := update.effective_user) is None:
             return
 
         resposta = (
             f"Olá, {user.first_name}! Sou o bot de suporte ao estudante. "
-            "Tente me perguntar sobre o calendário ou as próximas datas — "
-            "estou começando a entender essas coisas. Outras integrações "
-            "(matrícula, pagamentos, base de conhecimento) vêm nas próximas iterações."
+            "Pode me perguntar sobre o calendário, próximas datas e prazos. "
+            "Outras integrações (matrícula, pagamentos, base de conhecimento) "
+            "vêm nas próximas iterações."
         )
         inicio = time.monotonic()
         await msg.reply_text(resposta)
@@ -84,7 +102,7 @@ def _construir_handler_start(registrar: RegistrarInteracao) -> Handler:
                 resposta_enviada=resposta,
                 llm_provider="none",
                 llm_model="none",
-                prompt_versao=PROMPT_VERSAO,
+                prompt_versao=PERSONA_PADRAO.versao,
                 latencia_ms=latencia_ms,
             )
         )
@@ -92,88 +110,19 @@ def _construir_handler_start(registrar: RegistrarInteracao) -> Handler:
     return on_start
 
 
-def _formatar_eventos(eventos: list[EventoCalendario]) -> str:
-    if not eventos:
-        return "Não encontrei eventos próximos no calendário."
-    linhas = ["Próximos eventos:"]
-    for ev in eventos:
-        data = ev.inicio.strftime("%d/%m/%Y")
-        linhas.append(f"• {data} — {ev.titulo}")
-    return "\n".join(linhas)
-
-
-def _construir_handler_calendario(
-    registrar: RegistrarInteracao,
-    consultar: ConsultarCalendario,
-) -> Handler:
-    async def on_calendario(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-        if (msg := update.message) is None or (user := update.effective_user) is None:
-            return
-        if msg.text is None:
-            return
-
-        inicio = time.monotonic()
-        eventos: list[EventoCalendario] = []
-        erro: str | None = None
-        try:
-            eventos = await consultar()
-            resposta = _formatar_eventos(eventos)
-        except Exception as exc:
-            resposta = "Tive um problema ao consultar o calendário agora. Tente em alguns minutos."
-            erro = str(exc)
-            _log.warning("falha_consultar_calendario", error=str(exc))
-
-        await msg.reply_text(resposta)
-        latencia_ms = int((time.monotonic() - inicio) * 1000)
-
-        registrar(
-            Interacao(
-                aluno_id=None,
-                telegram_user_id=user.id,
-                chat_id=msg.chat_id,
-                mensagem_recebida=msg.text,
-                intencao_detectada="CALENDARIO",
-                resposta_enviada=resposta,
-                llm_provider="none",
-                llm_model="none",
-                prompt_versao=PROMPT_VERSAO,
-                latencia_ms=latencia_ms,
-                erro=erro,
-                contexto_recuperado={"eventos_ids": [str(e.id) for e in eventos]},
-            )
-        )
-
-    return on_calendario
-
-
-def _construir_handler_texto(registrar: RegistrarInteracao) -> Handler:
+def _construir_handler_texto(processar: ProcessarMensagem) -> Handler:
     async def on_text(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
         if (msg := update.message) is None or (user := update.effective_user) is None:
             return
         if msg.text is None:
             return
 
-        texto = msg.text
-        resposta = f"Você disse: {texto}"
-
-        inicio = time.monotonic()
-        await msg.reply_text(resposta)
-        latencia_ms = int((time.monotonic() - inicio) * 1000)
-
-        registrar(
-            Interacao(
-                aluno_id=None,
-                telegram_user_id=user.id,
-                chat_id=msg.chat_id,
-                mensagem_recebida=texto,
-                intencao_detectada="INDEFINIDO",
-                resposta_enviada=resposta,
-                llm_provider="none",
-                llm_model="none",
-                prompt_versao=PROMPT_VERSAO,
-                latencia_ms=latencia_ms,
-            )
+        resposta = await processar(
+            telegram_user_id=user.id,
+            chat_id=msg.chat_id,
+            texto=msg.text,
         )
+        await msg.reply_text(resposta)
 
     return on_text
 
@@ -181,23 +130,12 @@ def _construir_handler_texto(registrar: RegistrarInteracao) -> Handler:
 def construir_application(
     token: str,
     registrar: RegistrarInteracao,
-    consultar_calendario: ConsultarCalendario,
+    processar: ProcessarMensagem,
 ) -> AnyApplication:
-    """Monta a ``Application`` do python-telegram-bot com os handlers.
-
-    Ordem de registro importa: PTB tenta o primeiro handler que casa.
-    Handlers específicos (calendário) antes do fallback (eco).
-    """
     application: AnyApplication = ApplicationBuilder().token(token).build()
     application.add_handler(CommandHandler("start", _construir_handler_start(registrar)))
     application.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND & filters.Regex(_REGEX_CALENDARIO),
-            _construir_handler_calendario(registrar, consultar_calendario),
-        )
-    )
-    application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, _construir_handler_texto(registrar))
+        MessageHandler(filters.TEXT & ~filters.COMMAND, _construir_handler_texto(processar))
     )
     return application
 
@@ -220,13 +158,29 @@ def main() -> None:
     calendario_repo = SqlAlchemyCalendarioRepository(session_factory)
     consultar_calendario = ConsultarCalendario(calendario_repo)
 
+    gateway = _construir_gateway_llm(settings)
+    gerar_resposta = GerarResposta(gateway=gateway, persona=PERSONA_PADRAO)
+    processar = ProcessarMensagem(
+        classificar=ClassificarIntencao(),
+        consultar_calendario=consultar_calendario,
+        gerar_resposta=gerar_resposta,
+        registrar_interacao=registrar,
+        persona=PERSONA_PADRAO,
+    )
+
     application = construir_application(
         settings.telegram.bot_token.get_secret_value(),
         registrar,
-        consultar_calendario,
+        processar,
     )
 
-    _log.info("bot_inicializado", mode="polling", prompt_versao=PROMPT_VERSAO)
+    _log.info(
+        "bot_inicializado",
+        mode="polling",
+        prompt_versao=PERSONA_PADRAO.versao,
+        llm_provider=settings.llm.provider,
+        llm_model=settings.llm.model,
+    )
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 

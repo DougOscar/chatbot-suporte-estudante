@@ -70,6 +70,9 @@ dev = [
     "pytest-cov>=5",
     # Mocks/fakes úteis em testes assíncronos
     "anyio>=4",
+    # Em dev sempre instalamos o adapter de LLM default (Gemini).
+    # Em deploys minimalistas pode-se omitir o grupo dev e usar `--extra <provedor>`.
+    "google-genai>=0.3",
 ]
 
 # =====================================================================

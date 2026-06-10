@@ -113,6 +113,18 @@ O processo conecta no Telegram em **polling**, registra cada interação na tabe
 uv run python scripts/seed_calendario.py     # ~15 eventos no banco (idempotente)
 ```
 
+### Provedor de LLM
+
+Default: **Gemini Flash** via SDK `google-genai` (já incluído no grupo `dev`).
+- Sem `LLM_API_KEY` no `.env`: bot sobe normalmente e responde com `NullLLMGateway` (mensagem fixa "ainda não configurado"). Calendário continua funcionando porque é interno.
+- Com `LLM_API_KEY`: respostas geradas por Gemini Flash, tokens contabilizados em `interacao.tokens_entrada/saida`.
+
+Para trocar de provedor: implementar adapter em `infrastructure/llm/<provedor>_gateway.py` e adicionar branch em `_construir_gateway_llm` no entry point. Mudar `LLM_PROVIDER` no `.env`. SDKs alternativos são extras: `uv sync --extra anthropic|openai|groq`.
+
+### Persona / prompt
+
+Definida em `src/chatbot/domain/conversa/persona.py` como `PERSONA_PADRAO`. Mudar texto = bumpar `versao` (campo `prompt_versao` em `interacao` permite correlacionar mudanças de tom com métricas).
+
 ## A preencher quando o código existir
 
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:

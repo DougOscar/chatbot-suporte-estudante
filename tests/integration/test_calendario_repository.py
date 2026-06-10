@@ -49,6 +49,7 @@ async def test_filtra_por_horizonte(
 
     resultado = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.global_()],
     )
     titulos = {e.titulo for e in resultado}
@@ -71,6 +72,7 @@ async def test_filtra_por_audiencia(
     # Apenas global: vê só o global.
     resultado_g = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.global_()],
     )
     titulos_g = {e.titulo for e in resultado_g}
@@ -80,6 +82,7 @@ async def test_filtra_por_audiencia(
     # Curso:ADM (sem global): vê só o do curso.
     resultado_c = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.parse("curso:ADM")],
     )
     titulos_c = {e.titulo for e in resultado_c}
@@ -89,6 +92,7 @@ async def test_filtra_por_audiencia(
     # Múltiplas audiências (OR): vê os dois.
     resultado_ambos = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.global_(), Audiencia.parse("curso:ADM")],
     )
     titulos_ambos = {e.titulo for e in resultado_ambos}
@@ -105,6 +109,7 @@ async def test_ordena_por_inicio_ascendente(
 
     resultado = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.global_()],
     )
 
@@ -120,6 +125,7 @@ async def test_eventos_no_passado_sao_ignorados(
 
     resultado = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.global_()],
     )
 
@@ -163,6 +169,7 @@ async def test_dominio_mapeia_audiencia_corretamente(
 
     resultado = await repo.proximos_eventos(
         horizonte=timedelta(days=30),
+        limite=1000,
         audiencias=[Audiencia.parse("curso:CC")],
     )
     aud = next(e for e in resultado if e.audiencia.escopo == "curso").audiencia
