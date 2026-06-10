@@ -95,11 +95,22 @@ Notas importantes:
 - A migração inicial cria a extensão `pgvector` e o índice **HNSW** em `kb_chunk.embedding`. Requer Postgres com extensão `vector` >= 0.5 (a imagem `pgvector/pgvector:pg16` atende).
 - A dimensão do vetor é **768** (Gemini `text-embedding-004`). Mudar exige nova migração — `EMBEDDING_DIM` precisa bater entre `models.py` e a migração.
 
+### Rodar o bot localmente
+
+Pré-requisitos: Postgres rodando (container `chatbot-postgres` na :5433 ou outro), `.env` preenchido com `TELEGRAM_BOT_TOKEN` válido, migrações aplicadas.
+
+```bash
+uv run chatbot-bot                                  # entry point CLI
+# ou equivalente:
+uv run python -m chatbot.interfaces.telegram_bot
+```
+
+O processo conecta no Telegram em **polling**, registra cada interação na tabela `interacao`, e segue rodando até `Ctrl+C`. Em modo webhook (`TELEGRAM_MODE=webhook`) ainda não há suporte — vai virar `NotImplementedError`.
+
 ## A preencher quando o código existir
 
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:
 
-- Comando para rodar o bot localmente em polling (será algo como `uv run python -m chatbot` após criarmos o entry point).
 - Comando para rodar o job de sincronização da KB (provável `uv run python -m scripts.sync_kb`).
 - Dockerfile / docker-compose para dev.
 

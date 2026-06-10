@@ -49,6 +49,9 @@ local-embeddings = ["sentence-transformers>=3"]
 Repository = "https://github.com/DougOscar/chatbot-suporte-estudante"
 Documentation = "https://github.com/DougOscar/chatbot-suporte-estudante/tree/main/docs"
 
+[project.scripts]
+chatbot-bot = "chatbot.interfaces.telegram_bot.__main__:main"
+
 # =====================================================================
 # uv — gerenciador de pacotes e ambiente
 # =====================================================================
@@ -121,6 +124,13 @@ strict = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 disallow_untyped_decorators = false
+# Resolve "duplicate module named conftest" quando temos conftest.py em
+# tests/unit/ e tests/integration/ — trata cada diretório como namespace
+# package distinto. `mypy_path` aponta para o layout src/ para que mypy
+# não veja `src.chatbot.X` e `chatbot.X` como módulos diferentes.
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]

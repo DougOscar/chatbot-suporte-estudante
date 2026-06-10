@@ -81,9 +81,15 @@ O projeto usa [`uv`](https://docs.astral.sh/uv/) como gerenciador de pacotes e a
 
 7. **Provisionar banco e rodar migrações**
    Instruções em [`docs/04-Operacoes/Banco-de-Dados.md`](docs/04-Operacoes/Banco-de-Dados.md) (incluindo como habilitar `pgvector`).
+   ```bash
+   uv run alembic upgrade head
+   ```
 
 8. **Subir o bot** (modo polling para desenvolvimento)
-   O comando exato será adicionado aqui após a primeira iteração de código.
+   ```bash
+   uv run chatbot-bot
+   ```
+   Conecta no Telegram via polling. Mande `/start` ou qualquer texto — neste MVP o bot responde com eco e registra cada interação na tabela `interacao`. Integrações reais (matrícula, calendário, KB, LLM) vêm nas próximas fases.
 
 ### Comandos de desenvolvimento
 

@@ -1,7 +1,7 @@
-"""Testes do carregamento de configuração via pydantic-settings."""
+"""Testes do carregamento de configuração via pydantic-settings.
 
-from collections.abc import Iterator
-from pathlib import Path
+Isolação de ambiente (chdir + delenv) está em ``tests/unit/conftest.py``.
+"""
 
 import pytest
 from pydantic import ValidationError
@@ -17,41 +17,6 @@ from chatbot.config import (
     TelegramSettings,
     get_settings,
 )
-
-# Lista exaustiva das variáveis que as sub-settings podem ler — usada para
-# limpar o ambiente entre testes e garantir hermeticidade.
-_ENV_VARS = (
-    "TELEGRAM_BOT_TOKEN",
-    "TELEGRAM_MODE",
-    "TELEGRAM_WEBHOOK_URL",
-    "DATABASE_URL",
-    "LLM_PROVIDER",
-    "LLM_MODEL",
-    "LLM_API_KEY",
-    "EMBEDDING_PROVIDER",
-    "EMBEDDING_MODEL",
-    "EMBEDDING_API_KEY",
-    "GOOGLE_OAUTH_CLIENT_SECRETS_PATH",
-    "GOOGLE_OAUTH_TOKEN_STORE_PATH",
-    "GOOGLE_DRIVE_KB_FOLDER_ID",
-    "SISTEMA_ACADEMICO_BASE_URL",
-    "SISTEMA_ACADEMICO_API_KEY",
-    "LOG_LEVEL",
-    "LOG_FORMAT",
-)
-
-
-@pytest.fixture(autouse=True)
-def _isolated_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[None]:
-    """Isola cada teste de qualquer `.env` real ou variável vazada do shell."""
-    # `chdir` para tmp_path faz a leitura do `.env` (default da config)
-    # cair em diretório sem arquivo, evitando contaminação cruzada.
-    monkeypatch.chdir(tmp_path)
-    for var in _ENV_VARS:
-        monkeypatch.delenv(var, raising=False)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
 
 
 class TestTelegramSettings:

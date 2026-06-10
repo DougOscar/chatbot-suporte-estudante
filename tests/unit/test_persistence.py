@@ -4,7 +4,7 @@ Verifica que os modelos estão registrados na metadata e que estruturas
 relevantes (chaves, índices, FKs) batem com o desenho do schema.
 """
 
-from chatbot.infrastructure.persistence import models  # noqa: F401  (registra)
+from chatbot.infrastructure.persistence import models
 from chatbot.infrastructure.persistence.base import Base
 
 
@@ -64,3 +64,20 @@ class TestModuloEngine:
 
         assert callable(engine.create_engine)
         assert callable(engine.create_session_factory)
+
+
+class TestConstantesDeSchema:
+    def test_embedding_dim_models_bate_com_migracao_inicial(self) -> None:
+        # `EMBEDDING_DIM` é duplicado em models.py e na migração 0001
+        # (migrações são imutáveis — não devem importar do código atual).
+        # Este teste detecta drift se alguém alterar um sem o outro.
+        import importlib.util
+        from pathlib import Path
+
+        caminho = Path(__file__).resolve().parents[2] / "migrations/versions/0001_inicial.py"
+        spec = importlib.util.spec_from_file_location("migracao_0001", caminho)
+        assert spec is not None and spec.loader is not None
+        modulo = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(modulo)
+
+        assert models.EMBEDDING_DIM == modulo.EMBEDDING_DIM
