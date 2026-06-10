@@ -15,6 +15,7 @@ Calendar" no caso CALENDARIO; ``/conectar_google`` + ``/concluir_oauth
 <code>`` para o fluxo OAuth (mock em dev, real preparado).
 """
 
+import os
 import time
 from collections.abc import Callable, Coroutine
 from typing import Any
@@ -448,14 +449,34 @@ def construir_application(
     return application
 
 
+def _executar(application: AnyApplication, settings: Settings) -> None:
+    if settings.telegram.mode == "polling":
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        return
+
+    if settings.telegram.mode == "webhook":
+        webhook_url = settings.telegram.webhook_url
+        if webhook_url is None:
+            raise RuntimeError("TELEGRAM_WEBHOOK_URL é obrigatório em modo webhook.")
+        # Porta segue convenção 12-factor de PaaS (Fly.io, Cloud Run, Render).
+        port = int(os.getenv("PORT", "8080"))
+        secret_token = os.getenv("TELEGRAM_WEBHOOK_SECRET") or None
+        application.run_webhook(
+            listen="0.0.0.0",  # bind público é o ponto do webhook
+            port=port,
+            webhook_url=str(webhook_url),
+            url_path="webhook",
+            secret_token=secret_token,
+            allowed_updates=Update.ALL_TYPES,
+        )
+        return
+
+    raise NotImplementedError(f"Modo '{settings.telegram.mode}' não suportado.")
+
+
 def main() -> None:
     settings = get_settings()
     configurar_logging(settings.observability)
-
-    if settings.telegram.mode != "polling":
-        raise NotImplementedError(
-            f"Modo '{settings.telegram.mode}' ainda não suportado — use polling."
-        )
 
     engine = create_engine()
     session_factory = create_session_factory(engine)
@@ -512,12 +533,12 @@ def main() -> None:
 
     _log.info(
         "bot_inicializado",
-        mode="polling",
+        mode=settings.telegram.mode,
         prompt_versao=PERSONA_PADRAO.versao,
         llm_provider=settings.llm.provider,
         google_calendar_mock=settings.google_calendar.mock,
     )
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    _executar(application, settings)
 
 
 if __name__ == "__main__":

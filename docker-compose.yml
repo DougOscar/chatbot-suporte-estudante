@@ -1,0 +1,44 @@
+# Dev/staging local: bot + postgres pgvector.
+# `.env` na raiz fornece o resto (TELEGRAM_BOT_TOKEN, LLM_API_KEY, etc.).
+# DATABASE_URL é sobrescrito para apontar para o serviço postgres deste compose.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chatbot-postgres
+    environment:
+      POSTGRES_USER: chatbot
+      POSTGRES_PASSWORD: chatbot
+      POSTGRES_DB: chatbot
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # 5432 já costuma estar ocupada no host; expomos 5433.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chatbot -d chatbot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatbot-bot
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Override do .env — dentro da rede compose, postgres resolve pelo nome do serviço.
+      DATABASE_URL: postgresql+psycopg://chatbot:chatbot@postgres:5432/chatbot
+    # Aplica migrações antes de subir o bot.
+    command: ["sh", "-c", "alembic upgrade head && chatbot-bot"]
+    # Em modo webhook, expor a porta:
+    # ports:
+    #   - "8080:8080"
+
+volumes:
+  postgres_data:

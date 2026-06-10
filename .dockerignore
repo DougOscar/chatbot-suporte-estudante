@@ -1,0 +1,46 @@
+# --- venv local / cache ---
+.venv/
+.uv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- git e CI ---
+.git/
+.gitignore
+.github/
+
+# --- docs e vault Obsidian ---
+docs/
+
+# --- testes (não precisam ir pra imagem runtime) ---
+tests/
+
+# --- envs e segredos ---
+.env
+.env.local
+.env.*.local
+credentials.json
+token.json
+google-credentials.json
+client_secret*.json
+*.pem
+*.key
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- artefatos ---
+*.log
+logs/
+*.sqlite
+*.sqlite3
+*.db
+htmlcov/
+.coverage*

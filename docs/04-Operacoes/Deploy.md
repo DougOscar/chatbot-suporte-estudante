@@ -69,11 +69,49 @@ Quando em modo webhook, expor:
 - `GET /healthz` — alive
 - `GET /readyz` — pronto (banco respondendo, credenciais válidas)
 
-## Deploy script (a definir)
+## Build e deploy (Fase 5)
 
-Será adicionado quando houver `pyproject.toml` e Dockerfile. Esperado:
-- `Dockerfile` multi-stage com base Python slim
-- `docker-compose.yml` para desenvolvimento (bot + postgres + pgvector)
-- Pipeline CI (GitHub Actions) para testes + build de imagem
+### Imagem Docker
+
+`Dockerfile` multi-stage usando `uv` no builder e `python:3.12-slim-bookworm` no runtime. Usuário não-root (`chatbot`, uid 1000). Entry point `chatbot-bot` (script declarado em `pyproject.toml`).
+
+```bash
+docker build -t chatbot-suporte-estudante:latest .
+docker run --rm --env-file .env chatbot-suporte-estudante:latest
+```
+
+Tamanho da imagem final: ~530 MB. Em CI (com `buildx`) o build aproveita o `--mount=type=cache` do `uv`. Localmente sem `buildx`, o build é portável mas sem cache entre invocações.
+
+### Dev local com `docker-compose`
+
+```bash
+docker compose up --build
+```
+
+Sobe `postgres` (pgvector/pgvector:pg16, porta 5433 no host) com healthcheck + `bot` que aguarda o banco saudável, aplica `alembic upgrade head` e roda `chatbot-bot`. O `.env` na raiz é montado via `env_file`; `DATABASE_URL` é sobrescrito para o nome do serviço (`postgres:5432`).
+
+### CI (GitHub Actions)
+
+`.github/workflows/ci.yml` roda em todo push/PR para `main`:
+- **lint-and-type**: `ruff check`, `ruff format --check`, `mypy strict`
+- **tests**: postgres service (pgvector) + `alembic upgrade head` + `pytest -ra` (unit + integration)
+
+Concurrency cancela runs duplicados do mesmo branch. Cache do `uv` baseado em `uv.lock`.
+
+### Modo webhook (produção)
+
+O entry point já suporta:
+- `TELEGRAM_MODE=webhook`
+- `TELEGRAM_WEBHOOK_URL=https://seu-dominio.tld/webhook`
+- `PORT=8080` (convenção 12-factor; PaaS como Fly.io/Cloud Run/Render injetam)
+- `TELEGRAM_WEBHOOK_SECRET` opcional (validado pelo Telegram)
+
+O processo escuta em `0.0.0.0:$PORT` e o Telegram chama `POST <webhook_url>`. Healthcheck do orquestrador: TCP check na porta (qualquer connection = saudável).
+
+### Hospedagem gratuita sugerida
+
+- **Bot**: Fly.io free tier (`fly launch` com o Dockerfile + `fly secrets set` para o `.env`).
+- **Postgres**: Neon free 3 GB (já tem `pgvector` 0.8+).
+- **Cron de sync da KB**: GitHub Actions agendado (2.000 min/mês free em repos públicos) rodando `python -m scripts.sync_kb`.
 
 → [[04-Operacoes/Custos-e-Alternativas-Gratuitas]] | [[04-Operacoes/Banco-de-Dados]]

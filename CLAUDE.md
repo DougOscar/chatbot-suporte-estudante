@@ -154,7 +154,16 @@ A API real do sistema acadêmico não está definida ainda. Em dev usar `SISTEMA
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:
 
 - Comando para rodar o job de sincronização da KB (provável `uv run python -m scripts.sync_kb`).
-- Dockerfile / docker-compose para dev.
+### Docker / docker-compose / CI (Fase 5)
+
+```bash
+docker compose up --build                    # bot + postgres pgvector com healthchecks
+docker build -t chatbot-suporte-estudante .  # só a imagem
+```
+
+CI em `.github/workflows/ci.yml`: lint+format+mypy + testes (unit+integration) com Postgres service. Concurrency cancela runs antigos.
+
+Detalhes de deploy/webhook/hospedagem: `docs/04-Operacoes/Deploy.md`.
 
 Estrutura de pastas existente:
 ```
