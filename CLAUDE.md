@@ -111,7 +111,16 @@ O processo conecta no Telegram em **polling**, registra cada interação na tabe
 
 ```bash
 uv run python scripts/seed_calendario.py     # ~15 eventos no banco (idempotente)
+uv run python scripts/sync_kb.py             # base de conhecimento (4 docs mock + chunks + embeddings)
 ```
+
+### RAG / Base de Conhecimento
+
+Fonte: ``MockKbSource`` em ``infrastructure/google/docs/`` enquanto não temos service account Google configurada (deixar ``GOOGLE_DRIVE_KB_FOLDER_ID=`` vazio aciona o mock). Quando o adapter real existir, basta preencher a env var e o ``scripts/sync_kb.py`` passa a usar Google Drive+Docs.
+
+Embeddings: Gemini ``text-embedding-004`` (768-dim, bate com ``models.EMBEDDING_DIM``). Sem ``EMBEDDING_API_KEY``, cai no ``NullEmbeddingsGateway`` (vetor zero — sync e busca rodam mas resultados ficam degradados).
+
+Busca: ``embedding <=> :vetor`` (cosine distance) em ``kb_chunk`` com índice HNSW. Score exposto no domínio é ``1 - distance``, em [0, 1].
 
 ### Provedor de LLM
 

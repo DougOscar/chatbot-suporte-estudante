@@ -73,7 +73,6 @@ def test_calendario_tem_precedencia_sobre_saudacao(
         "minha situação acadêmica",
         "qual meu curso?",
         "estou trancado?",
-        "como faço trancamento?",
         "qual meu semestre atual?",
     ],
 )
@@ -103,3 +102,27 @@ def test_pagamento_tem_precedencia_sobre_matricula(
     # "minha mensalidade vence quando?" — ambíguo entre PAGAMENTO e MATRICULA.
     # Regra mais específica (pagamento, primeira na lista) ganha.
     assert classificar("minha mensalidade da matrícula vence quando?") == Intencao.PROXIMO_PAGAMENTO
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "qual a política de trancamento?",
+        "como funciona o reembolso?",
+        "qual o regulamento da biblioteca?",
+        "como faço para solicitar estágio?",
+        "posso renovar livros?",
+        "quais as regras do empréstimo?",
+        "qual o procedimento para convalidação?",
+    ],
+)
+def test_classifica_faq(classificar: ClassificarIntencao, texto: str) -> None:
+    assert classificar(texto) == Intencao.FAQ
+
+
+def test_intents_operacionais_tem_precedencia_sobre_faq(
+    classificar: ClassificarIntencao,
+) -> None:
+    # "qual a política de pagamento?" — bate em FAQ e em PROXIMO_PAGAMENTO.
+    # Operacional ganha (vem antes na lista).
+    assert classificar("qual a política de pagamento?") == Intencao.PROXIMO_PAGAMENTO

@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from chatbot.application.calendario import ConsultarCalendario
+from chatbot.application.conhecimento import BuscarConhecimento
 from chatbot.application.conversa import (
     ClassificarIntencao,
     GerarResposta,
@@ -20,6 +21,7 @@ from chatbot.application.financeiro import ConsultarProximoPagamento
 from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
 from chatbot.domain.calendario import Audiencia, EventoCalendario
+from chatbot.domain.conhecimento import ChunkKB, DocumentoKB, ResultadoBusca
 from chatbot.domain.conversa import PERSONA_PADRAO, RespostaLLM
 from chatbot.domain.financeiro import Pagamento, StatusPagamento
 from chatbot.domain.matricula import Matricula, StatusMatricula
@@ -102,6 +104,37 @@ class _FakeFinanceiroRepo:
         return [self.proximo] if self.proximo else []
 
 
+class _FakeKbRepo:
+    def __init__(self) -> None:
+        self.resultados: list[ResultadoBusca] = []
+
+    async def upsert_documento(self, documento: DocumentoKB) -> None: ...
+
+    async def substituir_chunks(self, documento_id: str, chunks: Sequence[ChunkKB]) -> None: ...
+
+    async def listar_documentos(self) -> list[DocumentoKB]:
+        return []
+
+    async def remover_documento(self, documento_id: str) -> None: ...
+
+    async def buscar_por_similaridade(
+        self, vetor: Sequence[float], *, top_k: int = 5
+    ) -> list[ResultadoBusca]:
+        return self.resultados
+
+
+class _FakeEmbeddings:
+    def __init__(self) -> None:
+        self.chamadas: list[str] = []
+
+    async def embed(self, texto: str) -> list[float]:
+        self.chamadas.append(texto)
+        return [0.1] * 768
+
+    async def embed_batch(self, textos: Sequence[str]) -> list[list[float]]:
+        return [[0.1] * 768 for _ in textos]
+
+
 def _evento(titulo: str) -> EventoCalendario:
     return EventoCalendario(
         id=uuid4(),
@@ -116,6 +149,8 @@ class _Fakes:
     repo_cal: _FakeRepoCalendario
     repo_matr: _FakeMatriculaRepo
     repo_fin: _FakeFinanceiroRepo
+    repo_kb: _FakeKbRepo
+    embeddings: _FakeEmbeddings
     gateway: _FakeGateway
     log: _FakeLog
     registrar: RegistrarInteracao
@@ -127,6 +162,8 @@ def fakes() -> _Fakes:
     repo_cal = _FakeRepoCalendario()
     repo_matr = _FakeMatriculaRepo()
     repo_fin = _FakeFinanceiroRepo()
+    repo_kb = _FakeKbRepo()
+    embeddings = _FakeEmbeddings()
     gateway = _FakeGateway()
     log = _FakeLog()
     registrar = RegistrarInteracao(log)
@@ -135,6 +172,7 @@ def fakes() -> _Fakes:
         consultar_calendario=ConsultarCalendario(repo_cal),
         consultar_matricula=ConsultarMatricula(repo_matr),
         consultar_proximo_pagamento=ConsultarProximoPagamento(repo_fin),
+        buscar_conhecimento=BuscarConhecimento(repository=repo_kb, embeddings=embeddings),
         gerar_resposta=GerarResposta(gateway=gateway, persona=PERSONA_PADRAO),
         registrar_interacao=registrar,
         persona=PERSONA_PADRAO,
@@ -143,6 +181,8 @@ def fakes() -> _Fakes:
         repo_cal=repo_cal,
         repo_matr=repo_matr,
         repo_fin=repo_fin,
+        repo_kb=repo_kb,
+        embeddings=embeddings,
         gateway=gateway,
         log=log,
         registrar=registrar,
@@ -316,6 +356,51 @@ async def test_intencao_proximo_pagamento_sem_pagamento_passa_none(
 
     ctx = fakes.log.registradas[0].contexto_recuperado
     assert ctx == {"pagamento": None}
+
+
+async def test_intencao_faq_embeda_pergunta_e_inclui_chunks_no_contexto(
+    fakes: _Fakes,
+) -> None:
+    fakes.repo_kb.resultados = [
+        ResultadoBusca(
+            chunk=ChunkKB(
+                documento_id="doc-1",
+                indice=0,
+                texto="Para trancar a matrícula, acesse o portal.",
+            ),
+            documento=DocumentoKB(
+                id="doc-1",
+                titulo="Política de Trancamento",
+                url="https://exemplo/trancamento",
+            ),
+            score=0.91,
+        ),
+    ]
+
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="como faço trancamento?")
+
+    # Embedded a pergunta exata.
+    assert fakes.embeddings.chamadas == ["como faço trancamento?"]
+
+    sistema = fakes.gateway.chamadas[0]["sistema"]
+    assert isinstance(sistema, str)
+    assert "FAQ" in sistema
+    assert "Política de Trancamento" in sistema
+    assert "Para trancar a matrícula" in sistema
+    assert "0.91" in sistema
+
+
+async def test_intencao_faq_sem_resultados_passa_lista_vazia(
+    fakes: _Fakes,
+) -> None:
+    # Vazio: o LLM deve responder "não tenho essa informação" via persona.
+    fakes.repo_kb.resultados = []
+
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="qual é o regulamento?")
+    await fakes.registrar.aguardar_pendentes()
+
+    ctx = fakes.log.registradas[0].contexto_recuperado
+    assert ctx == {"trechos": []}
 
 
 async def test_pagamento_nao_consulta_matricula_nem_calendario(

@@ -28,8 +28,14 @@ _REGRAS: list[tuple[re.Pattern[str], Intencao]] = [
     (
         re.compile(
             r"(?i)"
-            r"\b(?:matr[íi]cula|matriculad[oa]|trancad[oa]|trancamento|"
-            r"meu\s+curso|meu\s+semestre|situa[çc][ãa]o\s+acad[êe]mica)\b"
+            # Bate só em contextos pessoais (status do próprio aluno) — evita
+            # roubar consultas tipo "qual a política de trancamento?" que
+            # pertencem a FAQ.
+            r"\b(?:minha|meu)\s+matr[íi]cula\b"
+            r"|\bestou\s+matriculad[oa]\b"
+            r"|\bestou\s+trancad[oa]\b"
+            r"|\bsitua[çc][ãa]o\s+acad[êe]mica\b"
+            r"|\bmeu\s+(?:curso|semestre)\b"
         ),
         Intencao.MATRICULA,
     ),
@@ -45,6 +51,22 @@ _REGRAS: list[tuple[re.Pattern[str], Intencao]] = [
     (
         re.compile(r"(?i)^(/start\b|ol[áa]\b|oi\b|bom\s+dia|boa\s+tarde|boa\s+noite)"),
         Intencao.SAUDACAO,
+    ),
+    # FAQ — termos típicos de "como funciona X" e referências a documentos
+    # institucionais (política, regulamento, procedimento). Vem por último
+    # porque é o mais genérico; consultas claramente "operacionais"
+    # (matrícula/pagamento/calendário) já foram capturadas antes.
+    (
+        re.compile(
+            r"(?i)"
+            r"\b(?:pol[íi]tica|regulamento|regras?|procedimento|"
+            r"reembolso|estagio|est[áa]gio|biblioteca|empr[ée]stim[oa]s?)\b"
+            r"|"
+            r"\bcomo\s+(?:fa[çc]o|funciona|funcionar|posso|fazer)\b"
+            r"|"
+            r"\bposso\s+\w+"
+        ),
+        Intencao.FAQ,
     ),
 ]
 

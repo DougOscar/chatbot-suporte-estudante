@@ -31,6 +31,7 @@ from telegram.ext import (
 )
 
 from chatbot.application.calendario import ConsultarCalendario
+from chatbot.application.conhecimento import BuscarConhecimento
 from chatbot.application.conversa import (
     ClassificarIntencao,
     GerarResposta,
@@ -40,10 +41,12 @@ from chatbot.application.financeiro import ConsultarProximoPagamento
 from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
 from chatbot.config import Settings, get_settings
+from chatbot.domain.conhecimento import EmbeddingGateway
 from chatbot.domain.conversa import PERSONA_PADRAO, LLMGateway
 from chatbot.domain.financeiro import FinanceiroRepository
 from chatbot.domain.matricula import MatriculaRepository
 from chatbot.domain.observabilidade import Interacao
+from chatbot.infrastructure.llm.null_embeddings import NullEmbeddingsGateway
 from chatbot.infrastructure.llm.null_gateway import NullLLMGateway
 from chatbot.infrastructure.observabilidade.logging import configurar_logging
 from chatbot.infrastructure.observabilidade.sqlalchemy_log import SqlAlchemyInteracaoLog
@@ -51,6 +54,7 @@ from chatbot.infrastructure.persistence.calendario_repository import (
     SqlAlchemyCalendarioRepository,
 )
 from chatbot.infrastructure.persistence.engine import create_engine, create_session_factory
+from chatbot.infrastructure.persistence.kb_repository import SqlAlchemyKbRepository
 from chatbot.infrastructure.sistema_academico.mock_financeiro_repository import (
     MockFinanceiroRepository,
 )
@@ -102,6 +106,23 @@ def _construir_financeiro_repo(settings: Settings) -> FinanceiroRepository:
     raise NotImplementedError(
         "Adapter HTTP do sistema acadêmico ainda não definido — use "
         "SISTEMA_ACADEMICO_MOCK=true até a API real estar disponível."
+    )
+
+
+def _construir_embeddings_gateway(settings: Settings) -> EmbeddingGateway:
+    embed = settings.embedding
+    if embed.api_key is None or not embed.api_key.get_secret_value():
+        _log.warning("embedding_api_key_ausente_usando_null_gateway")
+        return NullEmbeddingsGateway()
+    if embed.provider == "gemini":
+        from chatbot.infrastructure.llm.gemini_embeddings import GeminiEmbeddingsGateway
+
+        return GeminiEmbeddingsGateway(
+            api_key=embed.api_key.get_secret_value(),
+            model=embed.model,
+        )
+    raise NotImplementedError(
+        f"Provedor de embeddings '{embed.provider}' não implementado. Suportados: gemini."
     )
 
 
@@ -194,6 +215,10 @@ def main() -> None:
     financeiro_repo = _construir_financeiro_repo(settings)
     consultar_proximo_pagamento = ConsultarProximoPagamento(financeiro_repo)
 
+    kb_repo = SqlAlchemyKbRepository(session_factory)
+    embeddings_gateway = _construir_embeddings_gateway(settings)
+    buscar_conhecimento = BuscarConhecimento(repository=kb_repo, embeddings=embeddings_gateway)
+
     gateway = _construir_gateway_llm(settings)
     gerar_resposta = GerarResposta(gateway=gateway, persona=PERSONA_PADRAO)
     processar = ProcessarMensagem(
@@ -201,6 +226,7 @@ def main() -> None:
         consultar_calendario=consultar_calendario,
         consultar_matricula=consultar_matricula,
         consultar_proximo_pagamento=consultar_proximo_pagamento,
+        buscar_conhecimento=buscar_conhecimento,
         gerar_resposta=gerar_resposta,
         registrar_interacao=registrar,
         persona=PERSONA_PADRAO,

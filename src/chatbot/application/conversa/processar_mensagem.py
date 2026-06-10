@@ -16,6 +16,7 @@ from typing import Any
 import structlog
 
 from chatbot.application.calendario import ConsultarCalendario
+from chatbot.application.conhecimento import BuscarConhecimento
 from chatbot.application.conversa.classificar_intencao import ClassificarIntencao
 from chatbot.application.conversa.gerar_resposta import GerarResposta
 from chatbot.application.financeiro import ConsultarProximoPagamento
@@ -39,6 +40,7 @@ class ProcessarMensagem:
         consultar_calendario: ConsultarCalendario,
         consultar_matricula: ConsultarMatricula,
         consultar_proximo_pagamento: ConsultarProximoPagamento,
+        buscar_conhecimento: BuscarConhecimento,
         gerar_resposta: GerarResposta,
         registrar_interacao: RegistrarInteracao,
         persona: Persona,
@@ -47,6 +49,7 @@ class ProcessarMensagem:
         self._consultar_calendario = consultar_calendario
         self._consultar_matricula = consultar_matricula
         self._consultar_proximo_pagamento = consultar_proximo_pagamento
+        self._buscar_conhecimento = buscar_conhecimento
         self._gerar_resposta = gerar_resposta
         self._registrar = registrar_interacao
         self._persona = persona
@@ -67,7 +70,7 @@ class ProcessarMensagem:
         erro: str | None = None
 
         try:
-            contexto = await self._coletar_contexto(intencao, telegram_user_id)
+            contexto = await self._coletar_contexto(intencao, telegram_user_id, texto)
             resposta_llm = await self._gerar_resposta(
                 intencao=intencao,
                 contexto=contexto,
@@ -105,7 +108,9 @@ class ProcessarMensagem:
 
         return resposta_texto
 
-    async def _coletar_contexto(self, intencao: Intencao, telegram_user_id: int) -> dict[str, Any]:
+    async def _coletar_contexto(
+        self, intencao: Intencao, telegram_user_id: int, mensagem: str
+    ) -> dict[str, Any]:
         """Contexto estruturado em DTOs serializáveis (JSON-safe)."""
         if intencao == Intencao.CALENDARIO:
             eventos = await self._consultar_calendario()
@@ -150,6 +155,20 @@ class ProcessarMensagem:
                     "status": pagamento.status.value,
                     "url_boleto": pagamento.url_boleto,
                 }
+            }
+
+        if intencao == Intencao.FAQ:
+            resultados = await self._buscar_conhecimento(pergunta=mensagem)
+            return {
+                "trechos": [
+                    {
+                        "documento_titulo": r.documento.titulo,
+                        "documento_url": r.documento.url,
+                        "texto": r.chunk.texto,
+                        "score": round(r.score, 4),
+                    }
+                    for r in resultados
+                ]
             }
 
         return {}
