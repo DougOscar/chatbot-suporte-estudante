@@ -103,6 +103,26 @@ class GoogleSettings(BaseSettings):
     drive_kb_folder_id: str = ""
 
 
+class GoogleCalendarSettings(BaseSettings):
+    """Configuração do Google Calendar (prefixo: ``GOOGLE_CALENDAR_``).
+
+    Em dev usar ``mock=True`` para emular OAuth + criar_evento sem rede.
+    Em produção, ``mock=False`` + secrets do OAuth client configurados.
+
+    ``tokens_encryption_key`` é uma chave Fernet (32 bytes base64). Gerar com::
+
+        python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+    Trocar a chave invalida todos os tokens armazenados.
+    """
+
+    model_config = SettingsConfigDict(env_prefix="GOOGLE_CALENDAR_", **_COMMON)
+
+    mock: bool = False
+    oauth_redirect_uri: str = ""
+    tokens_encryption_key: SecretStr | None = None
+
+
 class SistemaAcademicoSettings(BaseSettings):
     """Configuração do sistema acadêmico (prefixo: ``SISTEMA_ACADEMICO_``).
 
@@ -145,6 +165,7 @@ class Settings:
         self.llm: LLMSettings = LLMSettings()
         self.embedding: EmbeddingSettings = EmbeddingSettings()
         self.google: GoogleSettings = GoogleSettings()
+        self.google_calendar: GoogleCalendarSettings = GoogleCalendarSettings()
         self.sistema_academico: SistemaAcademicoSettings = SistemaAcademicoSettings()
         self.observability: ObservabilitySettings = ObservabilitySettings()
 

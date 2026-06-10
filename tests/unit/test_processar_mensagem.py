@@ -197,7 +197,8 @@ async def test_intencao_calendario_consulta_eventos_e_inclui_no_contexto(
 
     resposta = await fakes.uc(telegram_user_id=123, chat_id=456, texto="quais as datas?")
 
-    assert resposta == "resposta-gerada"
+    assert resposta.texto == "resposta-gerada"
+    assert resposta.intencao.value == "CALENDARIO"
     sistema = fakes.gateway.chamadas[0]["sistema"]
     assert isinstance(sistema, str)
     assert "Prova X" in sistema
@@ -240,7 +241,7 @@ async def test_falha_no_gateway_loga_erro_e_responde_fallback(fakes: _Fakes) -> 
 
     resposta = await fakes.uc(telegram_user_id=1, chat_id=1, texto="olá")
 
-    assert "problema" in resposta.lower()
+    assert "problema" in resposta.texto.lower()
     await fakes.registrar.aguardar_pendentes()
     r = fakes.log.registradas[0]
     assert r.erro == "rate limit estourou"
@@ -262,7 +263,7 @@ async def test_falha_no_repo_calendario_tambem_degrada(fakes: _Fakes) -> None:
 
     resposta = await fakes.uc(telegram_user_id=1, chat_id=1, texto="quais as próximas datas?")
 
-    assert "problema" in resposta.lower()
+    assert "problema" in resposta.texto.lower()
     await fakes.registrar.aguardar_pendentes()
     r = fakes.log.registradas[0]
     assert r.intencao_detectada == "CALENDARIO"
@@ -276,8 +277,8 @@ async def test_resposta_vazia_do_llm_cai_no_fallback(fakes: _Fakes) -> None:
 
     resposta = await fakes.uc(telegram_user_id=1, chat_id=1, texto="oi")
 
-    assert resposta != ""
-    assert "problema" in resposta.lower()
+    assert resposta.texto != ""
+    assert "problema" in resposta.texto.lower()
 
 
 async def test_persona_versao_grava_no_log(fakes: _Fakes) -> None:

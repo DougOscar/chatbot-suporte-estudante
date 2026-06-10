@@ -78,6 +78,10 @@ class OAuthGoogleToken(Base):
     expira_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    __table_args__ = (
+        UniqueConstraint("aluno_id", "provider", name="uq_oauth_token_aluno_provider"),
+    )
+
 
 class EventoCalendario(Base):
     __tablename__ = "evento_calendario"

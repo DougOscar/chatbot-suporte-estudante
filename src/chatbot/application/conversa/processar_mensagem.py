@@ -19,6 +19,7 @@ from chatbot.application.calendario import ConsultarCalendario
 from chatbot.application.conhecimento import BuscarConhecimento
 from chatbot.application.conversa.classificar_intencao import ClassificarIntencao
 from chatbot.application.conversa.gerar_resposta import GerarResposta
+from chatbot.application.conversa.resposta_conversa import RespostaConversa
 from chatbot.application.financeiro import ConsultarProximoPagamento
 from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
@@ -60,7 +61,7 @@ class ProcessarMensagem:
         telegram_user_id: int,
         chat_id: int,
         texto: str,
-    ) -> str:
+    ) -> RespostaConversa:
         inicio = time.monotonic()
         intencao = self._classificar(texto)
 
@@ -106,7 +107,7 @@ class ProcessarMensagem:
             )
         )
 
-        return resposta_texto
+        return RespostaConversa(texto=resposta_texto, intencao=intencao, contexto=contexto)
 
     async def _coletar_contexto(
         self, intencao: Intencao, telegram_user_id: int, mensagem: str

@@ -122,6 +122,15 @@ Embeddings: Gemini ``text-embedding-004`` (768-dim, bate com ``models.EMBEDDING_
 
 Busca: ``embedding <=> :vetor`` (cosine distance) em ``kb_chunk`` com índice HNSW. Score exposto no domínio é ``1 - distance``, em [0, 1].
 
+### Google Calendar (OAuth por aluno + "Adicionar")
+
+- ``GOOGLE_CALENDAR_MOCK=true`` em dev emula consent URL + criar_evento sem rede.
+- Em produção: ``mock=false`` + servidor HTTP para callback OAuth (não implementado neste MVP — fluxo "manual" via ``/concluir_oauth <code>`` está documentado e funciona).
+- Tokens persistidos cifrados (Fernet) em ``oauth_google_token``. Chave em ``GOOGLE_CALENDAR_TOKENS_ENCRYPTION_KEY``.
+- Onboarding implícito: UPSERT na tabela ``aluno`` por ``telegram_user_id``. Quando o vínculo formal existir, refatorar.
+- Inline keyboard "Adicionar ao Google Calendar" aparece automaticamente nas respostas do intent ``CALENDARIO`` (um botão por evento).
+- Dedup local via ``adicao_calendario_externo`` (composite unique aluno+evento). Click duplicado retorna ``JaAdicionado`` sem nova chamada externa.
+
 ### Provedor de LLM
 
 Default: **Gemini Flash** via SDK `google-genai` (já incluído no grupo `dev`).
