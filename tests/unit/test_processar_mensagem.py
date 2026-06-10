@@ -3,7 +3,8 @@
 import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -15,9 +16,13 @@ from chatbot.application.conversa import (
     GerarResposta,
     ProcessarMensagem,
 )
+from chatbot.application.financeiro import ConsultarProximoPagamento
+from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
 from chatbot.domain.calendario import Audiencia, EventoCalendario
 from chatbot.domain.conversa import PERSONA_PADRAO, RespostaLLM
+from chatbot.domain.financeiro import Pagamento, StatusPagamento
+from chatbot.domain.matricula import Matricula, StatusMatricula
 from chatbot.domain.observabilidade import Interacao
 
 
@@ -65,6 +70,38 @@ class _FakeLog:
         self.registradas.append(interacao)
 
 
+class _FakeMatriculaRepo:
+    def __init__(self) -> None:
+        self.retornar: Matricula | None = Matricula(
+            matricula_id_externo="2024001234",
+            status=StatusMatricula.ATIVA,
+            curso="ADS",
+            semestre_atual=5,
+            nome_aluno="Aluno Teste",
+            desde=date(2022, 2, 15),
+        )
+
+    async def buscar_por_telegram(self, telegram_user_id: int) -> Matricula | None:
+        return self.retornar
+
+
+class _FakeFinanceiroRepo:
+    def __init__(self) -> None:
+        self.proximo: Pagamento | None = Pagamento(
+            referencia="Mensalidade 06/2026",
+            valor=Decimal("890.00"),
+            vencimento=date(2026, 6, 18),
+            status=StatusPagamento.EM_ABERTO,
+            url_boleto="https://exemplo.com/boleto.pdf",
+        )
+
+    async def proximo_em_aberto(self, telegram_user_id: int) -> Pagamento | None:
+        return self.proximo
+
+    async def listar_pendentes(self, telegram_user_id: int) -> list[Pagamento]:
+        return [self.proximo] if self.proximo else []
+
+
 def _evento(titulo: str) -> EventoCalendario:
     return EventoCalendario(
         id=uuid4(),
@@ -77,6 +114,8 @@ def _evento(titulo: str) -> EventoCalendario:
 @dataclass
 class _Fakes:
     repo_cal: _FakeRepoCalendario
+    repo_matr: _FakeMatriculaRepo
+    repo_fin: _FakeFinanceiroRepo
     gateway: _FakeGateway
     log: _FakeLog
     registrar: RegistrarInteracao
@@ -86,17 +125,29 @@ class _Fakes:
 @pytest.fixture
 def fakes() -> _Fakes:
     repo_cal = _FakeRepoCalendario()
+    repo_matr = _FakeMatriculaRepo()
+    repo_fin = _FakeFinanceiroRepo()
     gateway = _FakeGateway()
     log = _FakeLog()
     registrar = RegistrarInteracao(log)
     uc = ProcessarMensagem(
         classificar=ClassificarIntencao(),
         consultar_calendario=ConsultarCalendario(repo_cal),
+        consultar_matricula=ConsultarMatricula(repo_matr),
+        consultar_proximo_pagamento=ConsultarProximoPagamento(repo_fin),
         gerar_resposta=GerarResposta(gateway=gateway, persona=PERSONA_PADRAO),
         registrar_interacao=registrar,
         persona=PERSONA_PADRAO,
     )
-    return _Fakes(repo_cal=repo_cal, gateway=gateway, log=log, registrar=registrar, uc=uc)
+    return _Fakes(
+        repo_cal=repo_cal,
+        repo_matr=repo_matr,
+        repo_fin=repo_fin,
+        gateway=gateway,
+        log=log,
+        registrar=registrar,
+        uc=uc,
+    )
 
 
 async def test_intencao_calendario_consulta_eventos_e_inclui_no_contexto(
@@ -217,3 +268,71 @@ async def test_latencia_ms_positiva(fakes: _Fakes) -> None:
     await fakes.uc(telegram_user_id=1, chat_id=1, texto="oi")
     await fakes.registrar.aguardar_pendentes()
     assert fakes.log.registradas[0].latencia_ms > 0
+
+
+async def test_intencao_matricula_inclui_dados_no_contexto(fakes: _Fakes) -> None:
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="qual minha matrícula?")
+
+    sistema = fakes.gateway.chamadas[0]["sistema"]
+    assert isinstance(sistema, str)
+    assert "MATRICULA" in sistema
+    assert "2024001234" in sistema
+    assert "ATIVA" in sistema
+    assert "Aluno Teste" in sistema
+
+
+async def test_intencao_matricula_sem_aluno_passa_none_no_contexto(
+    fakes: _Fakes,
+) -> None:
+    fakes.repo_matr.retornar = None
+
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="qual minha matrícula?")
+    await fakes.registrar.aguardar_pendentes()
+
+    ctx = fakes.log.registradas[0].contexto_recuperado
+    assert ctx == {"matricula": None}
+
+
+async def test_intencao_proximo_pagamento_inclui_dados_no_contexto(
+    fakes: _Fakes,
+) -> None:
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="quando vence minha mensalidade?")
+
+    sistema = fakes.gateway.chamadas[0]["sistema"]
+    assert isinstance(sistema, str)
+    assert "PROXIMO_PAGAMENTO" in sistema
+    assert "890.00" in sistema  # Decimal serializado via default=str
+    assert "EM_ABERTO" in sistema
+    assert "https://exemplo.com/boleto.pdf" in sistema
+
+
+async def test_intencao_proximo_pagamento_sem_pagamento_passa_none(
+    fakes: _Fakes,
+) -> None:
+    fakes.repo_fin.proximo = None
+
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="quando vence?")
+    await fakes.registrar.aguardar_pendentes()
+
+    ctx = fakes.log.registradas[0].contexto_recuperado
+    assert ctx == {"pagamento": None}
+
+
+async def test_pagamento_nao_consulta_matricula_nem_calendario(
+    fakes: _Fakes,
+) -> None:
+    fakes.repo_cal.eventos = [_evento("nao-deveria-aparecer")]
+    fakes.repo_matr.retornar = Matricula(
+        matricula_id_externo="x",
+        status=StatusMatricula.ATIVA,
+        curso="x",
+        semestre_atual=1,
+        nome_aluno="OUTRO ALUNO",
+    )
+
+    await fakes.uc(telegram_user_id=1, chat_id=1, texto="quando vence?")
+
+    sistema = fakes.gateway.chamadas[0]["sistema"]
+    assert isinstance(sistema, str)
+    assert "nao-deveria-aparecer" not in sistema
+    assert "OUTRO ALUNO" not in sistema

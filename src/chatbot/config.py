@@ -106,14 +106,17 @@ class GoogleSettings(BaseSettings):
 class SistemaAcademicoSettings(BaseSettings):
     """Configuração do sistema acadêmico (prefixo: ``SISTEMA_ACADEMICO_``).
 
-    Placeholder — auth e endpoints serão definidos quando a API real
-    estiver disponível. Ver ``docs/03-Integracoes/Sistema-Academico.md``.
+    Em dev usar ``mock=True`` para repositórios fake
+    (``infrastructure/sistema_academico/mock_*``). Em produção,
+    ``mock=False`` + ``base_url`` real. Ver
+    ``docs/03-Integracoes/Sistema-Academico.md``.
     """
 
     model_config = SettingsConfigDict(env_prefix="SISTEMA_ACADEMICO_", **_COMMON)
 
     base_url: str = ""
     api_key: SecretStr | None = None
+    mock: bool = False
 
 
 class ObservabilitySettings(BaseSettings):

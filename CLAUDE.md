@@ -125,6 +125,12 @@ Para trocar de provedor: implementar adapter em `infrastructure/llm/<provedor>_g
 
 Definida em `src/chatbot/domain/conversa/persona.py` como `PERSONA_PADRAO`. Mudar texto = bumpar `versao` (campo `prompt_versao` em `interacao` permite correlacionar mudanças de tom com métricas).
 
+### Sistema Acadêmico (mock)
+
+A API real do sistema acadêmico não está definida ainda. Em dev usar `SISTEMA_ACADEMICO_MOCK=true` no `.env` — repositórios em `infrastructure/sistema_academico/mock_*` retornam dados fictícios de um aluno único, independente do `telegram_user_id`. Quando a API real existir, criar adapter HTTP (`infrastructure/sistema_academico/http_*`) e mudar para `mock=false`.
+
+**Limitação documentada**: sem onboarding aluno↔Telegram, **todo usuário do Telegram vê o mesmo aluno fictício**. Resolver quando o fluxo de vínculo for implementado (ver `docs/02-Dominios/Matricula.md`).
+
 ## A preencher quando o código existir
 
 Estes itens **ainda não têm comandos reais** — adicionar aqui quando forem criados, **sem inventar antes**:

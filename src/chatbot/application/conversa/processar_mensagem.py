@@ -18,6 +18,8 @@ import structlog
 from chatbot.application.calendario import ConsultarCalendario
 from chatbot.application.conversa.classificar_intencao import ClassificarIntencao
 from chatbot.application.conversa.gerar_resposta import GerarResposta
+from chatbot.application.financeiro import ConsultarProximoPagamento
+from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
 from chatbot.domain.conversa import Intencao, Persona, RespostaLLM
 from chatbot.domain.observabilidade import Interacao
@@ -35,12 +37,16 @@ class ProcessarMensagem:
         *,
         classificar: ClassificarIntencao,
         consultar_calendario: ConsultarCalendario,
+        consultar_matricula: ConsultarMatricula,
+        consultar_proximo_pagamento: ConsultarProximoPagamento,
         gerar_resposta: GerarResposta,
         registrar_interacao: RegistrarInteracao,
         persona: Persona,
     ) -> None:
         self._classificar = classificar
         self._consultar_calendario = consultar_calendario
+        self._consultar_matricula = consultar_matricula
+        self._consultar_proximo_pagamento = consultar_proximo_pagamento
         self._gerar_resposta = gerar_resposta
         self._registrar = registrar_interacao
         self._persona = persona
@@ -61,7 +67,7 @@ class ProcessarMensagem:
         erro: str | None = None
 
         try:
-            contexto = await self._coletar_contexto(intencao)
+            contexto = await self._coletar_contexto(intencao, telegram_user_id)
             resposta_llm = await self._gerar_resposta(
                 intencao=intencao,
                 contexto=contexto,
@@ -99,13 +105,8 @@ class ProcessarMensagem:
 
         return resposta_texto
 
-    async def _coletar_contexto(self, intencao: Intencao) -> dict[str, Any]:
-        """Coleta o contexto estruturado adequado à intenção.
-
-        Por design retorna apenas DTOs serializáveis (sem objetos de domínio),
-        para que o JSONB de ``interacao.contexto_recuperado`` seja consultável
-        depois sem deserialização especial.
-        """
+    async def _coletar_contexto(self, intencao: Intencao, telegram_user_id: int) -> dict[str, Any]:
+        """Contexto estruturado em DTOs serializáveis (JSON-safe)."""
         if intencao == Intencao.CALENDARIO:
             eventos = await self._consultar_calendario()
             return {
@@ -121,4 +122,34 @@ class ProcessarMensagem:
                     for e in eventos
                 ]
             }
+
+        if intencao == Intencao.MATRICULA:
+            matricula = await self._consultar_matricula(telegram_user_id=telegram_user_id)
+            if matricula is None:
+                return {"matricula": None}
+            return {
+                "matricula": {
+                    "matricula_id_externo": matricula.matricula_id_externo,
+                    "status": matricula.status.value,
+                    "curso": matricula.curso,
+                    "semestre_atual": matricula.semestre_atual,
+                    "nome_aluno": matricula.nome_aluno,
+                    "desde": (matricula.desde.isoformat() if matricula.desde else None),
+                }
+            }
+
+        if intencao == Intencao.PROXIMO_PAGAMENTO:
+            pagamento = await self._consultar_proximo_pagamento(telegram_user_id=telegram_user_id)
+            if pagamento is None:
+                return {"pagamento": None}
+            return {
+                "pagamento": {
+                    "referencia": pagamento.referencia,
+                    "valor": str(pagamento.valor),
+                    "vencimento": pagamento.vencimento.isoformat(),
+                    "status": pagamento.status.value,
+                    "url_boleto": pagamento.url_boleto,
+                }
+            }
+
         return {}

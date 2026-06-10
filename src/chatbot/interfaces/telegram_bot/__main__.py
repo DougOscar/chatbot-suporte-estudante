@@ -36,9 +36,13 @@ from chatbot.application.conversa import (
     GerarResposta,
     ProcessarMensagem,
 )
+from chatbot.application.financeiro import ConsultarProximoPagamento
+from chatbot.application.matricula import ConsultarMatricula
 from chatbot.application.observabilidade import RegistrarInteracao
 from chatbot.config import Settings, get_settings
 from chatbot.domain.conversa import PERSONA_PADRAO, LLMGateway
+from chatbot.domain.financeiro import FinanceiroRepository
+from chatbot.domain.matricula import MatriculaRepository
 from chatbot.domain.observabilidade import Interacao
 from chatbot.infrastructure.llm.null_gateway import NullLLMGateway
 from chatbot.infrastructure.observabilidade.logging import configurar_logging
@@ -47,6 +51,12 @@ from chatbot.infrastructure.persistence.calendario_repository import (
     SqlAlchemyCalendarioRepository,
 )
 from chatbot.infrastructure.persistence.engine import create_engine, create_session_factory
+from chatbot.infrastructure.sistema_academico.mock_financeiro_repository import (
+    MockFinanceiroRepository,
+)
+from chatbot.infrastructure.sistema_academico.mock_matricula_repository import (
+    MockMatriculaRepository,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -72,6 +82,26 @@ def _construir_gateway_llm(settings: Settings) -> LLMGateway:
 
     raise NotImplementedError(
         f"Provedor de LLM '{provider}' ainda não implementado. Suportados: gemini."
+    )
+
+
+def _construir_matricula_repo(settings: Settings) -> MatriculaRepository:
+    if settings.sistema_academico.mock:
+        _log.info("sistema_academico_modo_mock", repo="matricula")
+        return MockMatriculaRepository()
+    raise NotImplementedError(
+        "Adapter HTTP do sistema acadêmico ainda não definido — use "
+        "SISTEMA_ACADEMICO_MOCK=true até a API real estar disponível."
+    )
+
+
+def _construir_financeiro_repo(settings: Settings) -> FinanceiroRepository:
+    if settings.sistema_academico.mock:
+        _log.info("sistema_academico_modo_mock", repo="financeiro")
+        return MockFinanceiroRepository()
+    raise NotImplementedError(
+        "Adapter HTTP do sistema acadêmico ainda não definido — use "
+        "SISTEMA_ACADEMICO_MOCK=true até a API real estar disponível."
     )
 
 
@@ -158,11 +188,19 @@ def main() -> None:
     calendario_repo = SqlAlchemyCalendarioRepository(session_factory)
     consultar_calendario = ConsultarCalendario(calendario_repo)
 
+    matricula_repo = _construir_matricula_repo(settings)
+    consultar_matricula = ConsultarMatricula(matricula_repo)
+
+    financeiro_repo = _construir_financeiro_repo(settings)
+    consultar_proximo_pagamento = ConsultarProximoPagamento(financeiro_repo)
+
     gateway = _construir_gateway_llm(settings)
     gerar_resposta = GerarResposta(gateway=gateway, persona=PERSONA_PADRAO)
     processar = ProcessarMensagem(
         classificar=ClassificarIntencao(),
         consultar_calendario=consultar_calendario,
+        consultar_matricula=consultar_matricula,
+        consultar_proximo_pagamento=consultar_proximo_pagamento,
         gerar_resposta=gerar_resposta,
         registrar_interacao=registrar,
         persona=PERSONA_PADRAO,

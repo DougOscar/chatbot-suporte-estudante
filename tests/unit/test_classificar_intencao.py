@@ -19,7 +19,7 @@ def classificar() -> ClassificarIntencao:
         "Quais são as próximas datas?",
         "tem alguma próxima prova?",
         "próximos eventos da turma",
-        "quando é o prazo da matrícula?",
+        "qual o prazo final?",
         "tem recesso semana que vem?",
         "PROVA",
     ],
@@ -63,3 +63,43 @@ def test_calendario_tem_precedencia_sobre_saudacao(
     # "olá, qual o calendário?" — embora bata em ambas, calendário deve ganhar
     # (regra mais específica vem primeiro na lista).
     assert classificar("olá, qual o calendário?") == Intencao.CALENDARIO
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "qual minha matrícula?",
+        "estou matriculado?",
+        "minha situação acadêmica",
+        "qual meu curso?",
+        "estou trancado?",
+        "como faço trancamento?",
+        "qual meu semestre atual?",
+    ],
+)
+def test_classifica_matricula(classificar: ClassificarIntencao, texto: str) -> None:
+    assert classificar(texto) == Intencao.MATRICULA
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "quando vence minha mensalidade?",
+        "qual o valor do meu boleto?",
+        "tem pagamento em aberto?",
+        "estou inadimplente?",
+        "quanto vou pagar este mês?",
+        "MENSALIDADE",
+        "quero ver minhas cobranças",
+    ],
+)
+def test_classifica_proximo_pagamento(classificar: ClassificarIntencao, texto: str) -> None:
+    assert classificar(texto) == Intencao.PROXIMO_PAGAMENTO
+
+
+def test_pagamento_tem_precedencia_sobre_matricula(
+    classificar: ClassificarIntencao,
+) -> None:
+    # "minha mensalidade vence quando?" — ambíguo entre PAGAMENTO e MATRICULA.
+    # Regra mais específica (pagamento, primeira na lista) ganha.
+    assert classificar("minha mensalidade da matrícula vence quando?") == Intencao.PROXIMO_PAGAMENTO
